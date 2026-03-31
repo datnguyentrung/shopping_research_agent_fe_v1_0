@@ -1,5 +1,5 @@
 import MainLayout from "./layouts/MainLayout";
-import ChatPage from "./pages/ChatPage/ChatPage";
+import ChatPage from "./pages/ChatPage";
 
 function App() {
   return (

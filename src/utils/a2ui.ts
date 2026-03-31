@@ -1,0 +1,138 @@
+import type {
+  A2UIPayload,
+  A2UIProcessingData,
+  A2UIProductData,
+  A2UIQuestionnaireData,
+} from "@/types/a2ui.types";
+import type { CapturedData } from "@/types/product.types";
+
+const isRecord = (value: unknown): value is Record<string, unknown> =>
+  typeof value === "object" && value !== null;
+
+const toStringArray = (value: unknown): string[] | undefined => {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const normalized = value.filter(
+    (item): item is string => typeof item === "string",
+  );
+  return normalized.length ? normalized : undefined;
+};
+
+const normalizeQuestionnaireData = (
+  data: unknown,
+): A2UIQuestionnaireData | null => {
+  if (
+    !isRecord(data) ||
+    typeof data.title !== "string" ||
+    !Array.isArray(data.options)
+  ) {
+    return null;
+  }
+
+  const options = data.options
+    .filter(isRecord)
+    .map((item) => {
+      const id = typeof item.id === "string" ? item.id : null;
+      const labelRaw = item.label ?? item.text;
+      const label = typeof labelRaw === "string" ? labelRaw : null;
+
+      if (!id || !label) {
+        return null;
+      }
+
+      return { id, label };
+    })
+    .filter((item): item is { id: string; label: string } => item !== null);
+
+  if (!options.length) {
+    return null;
+  }
+
+  const allowMultipleRaw = data.allowMultiple ?? data.allow_multiple;
+
+  return {
+    title: data.title,
+    statusText:
+      typeof data.statusText === "string" ? data.statusText : undefined,
+    allowMultiple: allowMultipleRaw === true,
+    options,
+  };
+};
+
+const normalizeProductData = (data: unknown): A2UIProductData | null => {
+  if (!isRecord(data) || !isRecord(data.product)) {
+    return null;
+  }
+
+  const { product } = data;
+
+  if (
+    typeof product.platform !== "string" ||
+    (typeof product.productId !== "string" &&
+      typeof product.productId !== "number") ||
+    typeof product.name !== "string" ||
+    typeof product.priceCurrent !== "number" ||
+    typeof product.currency !== "string" ||
+    typeof product.mainImage !== "string" ||
+    typeof product.ratingStart !== "number" ||
+    typeof product.ratingCount !== "number" ||
+    !isRecord(product.shop) ||
+    typeof product.shop.shopId !== "string" ||
+    typeof product.shop.shopName !== "string"
+  ) {
+    return null;
+  }
+
+  const reasonsRaw = data.reasonsToReject ?? data.reasons_to_reject;
+
+  return {
+    product: product as unknown as CapturedData,
+    reasonsToReject: toStringArray(reasonsRaw),
+  };
+};
+
+const normalizeProcessingData = (data: unknown): A2UIProcessingData | null => {
+  if (!isRecord(data)) {
+    return null;
+  }
+
+  const statusTextRaw = data.statusText ?? data.status_text;
+  if (typeof statusTextRaw !== "string") {
+    return null;
+  }
+
+  const progressRaw = data.progressPercent ?? data.progress_percent;
+
+  return {
+    statusText: statusTextRaw,
+    progressPercent: typeof progressRaw === "number" ? progressRaw : undefined,
+  };
+};
+
+export const normalizeA2UIPayload = (payload: unknown): A2UIPayload | null => {
+  if (!isRecord(payload) || typeof payload.type !== "string") {
+    return null;
+  }
+
+  switch (payload.type) {
+    case "a2ui_questionnaire": {
+      const data = normalizeQuestionnaireData(payload.data);
+      return data ? { type: payload.type, data } : null;
+    }
+
+    case "a2ui_interactive_product": {
+      const data = normalizeProductData(payload.data);
+      return data ? { type: payload.type, data } : null;
+    }
+
+    case "a2ui_processing_status": {
+      const data = normalizeProcessingData(payload.data);
+      return data ? { type: payload.type, data } : null;
+    }
+
+    default:
+      return null;
+  }
+};

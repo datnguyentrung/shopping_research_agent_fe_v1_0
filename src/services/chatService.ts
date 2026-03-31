@@ -23,8 +23,20 @@ export const streamChat = async (
         return;
       }
 
+      if (event.data === "[DONE]") {
+        callbacks.onDone();
+        return;
+      }
+
       try {
-        const data = JSON.parse(event.data) as ChatStreamChunk;
+        const data = JSON.parse(event.data) as Partial<ChatStreamChunk>;
+
+        console.log("Received SSE chunk:", data);
+
+        if (!data.type) { 
+          callbacks.onChunk({ type: "message", content: event.data });
+          return;
+        }
 
         if (data.type === "done") {
           callbacks.onDone();
@@ -36,7 +48,7 @@ export const streamChat = async (
           return;
         }
 
-        callbacks.onChunk(data);
+        callbacks.onChunk(data as ChatStreamChunk);
       } catch {
         callbacks.onChunk({ type: "message", content: event.data });
       }

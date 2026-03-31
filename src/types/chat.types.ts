@@ -1,28 +1,29 @@
-export type Sender = "user" | "assistant" | "system";
+import type { A2UIPayload } from "./a2ui.types";
+import type { CapturedData } from "./product.types";
 
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  imageUrl?: string;
-  description?: string;
-}
+export type Role = "user" | "assistant" | "system";
 
 export interface ChatMessage {
   id: string;
-  sender: Sender;
+  role: Role;
   content: string;
   createdAt: string;
-  products?: Product[];
+  products?: CapturedData[]; // Thêm trường products để chứa thông tin sản phẩm liên quan đến tin nhắn, nếu có
+  a2ui?: A2UIPayload; // Thêm trường a2ui để chứa payload đặc biệt cho giao diện, nếu có
 }
 
 export interface ChatRequest {
   message: string;
   sessionId?: string;
+  hidden_events?: {
+    action: string;
+    payload: unknown;
+  };
 }
 
 export interface ChatStreamChunk {
-  type: "message" | "done" | "error";
+  type: "message" | "a2ui" | "done" | "error";
   content?: string;
+  a2ui?: unknown;
   error?: string;
 }

@@ -1,13 +1,18 @@
 import { useCallback, useState } from "react";
 import { streamChat } from "../services/chatService";
-import type { ChatMessage } from "../types/chat.types";
+import type {
+  ChatMessage,
+  ChatRequest,
+  ChatStreamChunk,
+} from "../types/chat.types";
+import { normalizeA2UIPayload } from "../utils/a2ui";
 
 const createMessage = (
-  sender: ChatMessage["sender"],
+  role: ChatMessage["role"],
   content: string,
 ): ChatMessage => ({
   id: crypto.randomUUID(),
-  sender,
+  role,
   content,
   createdAt: new Date().toISOString(),
 });
@@ -17,46 +22,72 @@ export const useChatSSE = () => {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const sendMessage = useCallback(async (message: string) => {
-    if (!message.trim()) {
-      return;
-    }
+  const applyChunkToAssistant = useCallback(
+    (assistantMessageId: string, chunk: ChatStreamChunk) => {
+      setMessages((prev) =>
+        prev.map((item) => {
+          if (item.id !== assistantMessageId) {
+            return item;
+          }
 
-    const userMessage = createMessage("user", message);
-    const assistantMessageId = crypto.randomUUID();
+          if (chunk.type === "message") {
+            return {
+              ...item,
+              content: `${item.content}${chunk.content ?? ""}`,
+            };
+          }
 
-    setError(null);
-    setIsLoading(true);
-    setMessages((prev) => [
-      ...prev,
-      userMessage,
-      {
-        id: assistantMessageId,
-        sender: "assistant",
-        content: "",
-        createdAt: new Date().toISOString(),
-      },
-    ]);
-
-    try {
-      await streamChat(
-        { message },
-        {
-          onChunk: (chunk) => {
-            if (chunk.type !== "message") {
-              return;
+          if (chunk.type === "a2ui") {
+            const normalizedPayload = normalizeA2UIPayload(chunk.a2ui);
+            if (!normalizedPayload) {
+              return item;
             }
 
-            setMessages((prev) =>
-              prev.map((item) =>
-                item.id === assistantMessageId
-                  ? {
-                      ...item,
-                      content: `${item.content}${chunk.content ?? ""}`,
-                    }
-                  : item,
-              ),
-            );
+            return {
+              ...item,
+              a2ui: normalizedPayload,
+            };
+          }
+
+          return item;
+        }),
+      );
+    },
+    [],
+  );
+
+  const startStream = useCallback(
+    async (
+      payload: ChatRequest,
+      options?: {
+        userMessage?: string;
+      },
+    ) => {
+      const assistantMessageId = crypto.randomUUID();
+
+      setError(null);
+      setIsLoading(true);
+      setMessages((prev) => {
+        const next = [...prev];
+
+        if (options?.userMessage && options.userMessage.trim()) {
+          next.push(createMessage("user", options.userMessage));
+        }
+
+        next.push({
+          id: assistantMessageId,
+          role: "assistant",
+          content: "",
+          createdAt: new Date().toISOString(),
+        });
+
+        return next;
+      });
+
+      try {
+        await streamChat(payload, {
+          onChunk: (chunk) => {
+            applyChunkToAssistant(assistantMessageId, chunk);
           },
           onDone: () => {
             setIsLoading(false);
@@ -65,20 +96,46 @@ export const useChatSSE = () => {
             setError(errMessage);
             setIsLoading(false);
           },
+        });
+      } catch (err) {
+        setError(
+          err instanceof Error ? err.message : "Cannot connect to chat service",
+        );
+        setIsLoading(false);
+      }
+    },
+    [applyChunkToAssistant],
+  );
+
+  const sendMessage = useCallback(
+    async (message: string) => {
+      if (!message.trim()) {
+        return;
+      }
+
+      await startStream({ message }, { userMessage: message });
+    },
+    [startStream],
+  );
+
+  const sendHiddenMessage = useCallback(
+    async (action: string, payload: unknown) => {
+      await startStream({
+        message: "",
+        hidden_events: {
+          action,
+          payload,
         },
-      );
-    } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Cannot connect to chat service",
-      );
-      setIsLoading(false);
-    }
-  }, []);
+      });
+    },
+    [startStream],
+  );
 
   return {
     messages,
     isLoading,
     error,
     sendMessage,
+    sendHiddenMessage,
   };
 };
