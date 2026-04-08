@@ -47,6 +47,16 @@ export const A2UIRenderer: React.FC<A2UIRendererProps> = ({
         />
       );
 
+    case "a2ui_done":
+      return (
+        <div
+          className="a2ui-done-badge"
+          style={{ color: "green", fontSize: "14px" }}
+        >
+          ✓ Đã hoàn tất phân tích
+        </div>
+      );
+
     default:
       return null;
   }

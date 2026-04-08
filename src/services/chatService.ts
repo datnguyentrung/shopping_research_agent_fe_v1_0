@@ -12,12 +12,16 @@ export const streamChat = async (
   payload: ChatRequest,
   callbacks: StreamCallbacks,
 ): Promise<void> => {
+  const ctrl = new AbortController();
   await fetchEventSource(`${apiConfig.baseUrl}/chat/stream`, {
     method: "POST",
+    // 👇 THÊM DÒNG NÀY ĐỂ TẮT TÍNH NĂNG TỰ NGẮT KHI CHUYỂN TAB
+    openWhenHidden: true,
     headers: {
       "Content-Type": "application/json",
     },
     body: JSON.stringify(payload),
+    signal: ctrl.signal,
     onmessage(event) {
       if (!event.data) {
         return;
@@ -33,7 +37,7 @@ export const streamChat = async (
 
         console.log("Received SSE chunk:", data);
 
-        if (!data.type) { 
+        if (!data.type) {
           callbacks.onChunk({ type: "message", content: event.data });
           return;
         }

@@ -10,7 +10,9 @@ const clampPercent = (value?: number) => {
     return 0;
   }
 
-  return Math.min(100, Math.max(0, value));
+  // Keep processing status below 100 to avoid showing "done" too early.
+  // Completion is represented by a separate `a2ui_done` event.
+  return Math.min(99, Math.max(0, value));
 };
 
 export default function ProcessingStatus({

@@ -1,4 +1,4 @@
-import { useCallback, useState } from "react";
+import { useCallback, useRef, useState } from "react";
 import { streamChat } from "../services/chatService";
 import type {
   ChatMessage,
@@ -21,6 +21,7 @@ export const useChatSSE = () => {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const sessionIdRef = useRef<string>(crypto.randomUUID());
 
   const applyChunkToAssistant = useCallback(
     (assistantMessageId: string, chunk: ChatStreamChunk) => {
@@ -38,7 +39,8 @@ export const useChatSSE = () => {
           }
 
           if (chunk.type === "a2ui") {
-            const normalizedPayload = normalizeA2UIPayload(chunk.a2ui);
+            const rawPayload = chunk.a2ui ?? chunk.a2Ui;
+            const normalizedPayload = normalizeA2UIPayload(rawPayload);
             if (!normalizedPayload) {
               return item;
             }
@@ -61,6 +63,7 @@ export const useChatSSE = () => {
       payload: ChatRequest,
       options?: {
         userMessage?: string;
+        isHidden?: boolean;
       },
     ) => {
       const assistantMessageId = crypto.randomUUID();
@@ -70,7 +73,11 @@ export const useChatSSE = () => {
       setMessages((prev) => {
         const next = [...prev];
 
-        if (options?.userMessage && options.userMessage.trim()) {
+        if (
+          options?.userMessage &&
+          options.userMessage.trim() &&
+          !options.isHidden
+        ) {
           next.push(createMessage("user", options.userMessage));
         }
 
@@ -85,18 +92,21 @@ export const useChatSSE = () => {
       });
 
       try {
-        await streamChat(payload, {
-          onChunk: (chunk) => {
-            applyChunkToAssistant(assistantMessageId, chunk);
+        await streamChat(
+          { ...payload, sessionId: sessionIdRef.current },
+          {
+            onChunk: (chunk) => {
+              applyChunkToAssistant(assistantMessageId, chunk);
+            },
+            onDone: () => {
+              setIsLoading(false);
+            },
+            onError: (errMessage) => {
+              setError(errMessage);
+              setIsLoading(false);
+            },
           },
-          onDone: () => {
-            setIsLoading(false);
-          },
-          onError: (errMessage) => {
-            setError(errMessage);
-            setIsLoading(false);
-          },
-        });
+        );
       } catch (err) {
         setError(
           err instanceof Error ? err.message : "Cannot connect to chat service",
@@ -126,10 +136,18 @@ export const useChatSSE = () => {
           action,
           payload,
         },
-      });
+      }, { isHidden: true});
     },
     [startStream],
   );
+
+  const resetChat = useCallback(() => {
+    // Tạo 1 Session ID mới hoàn toàn
+    sessionIdRef.current = crypto.randomUUID();
+    // Xóa lịch sử UI
+    setMessages([]);
+    setError(null);
+  }, []);
 
   return {
     messages,
@@ -137,5 +155,6 @@ export const useChatSSE = () => {
     error,
     sendMessage,
     sendHiddenMessage,
+    resetChat,
   };
 };

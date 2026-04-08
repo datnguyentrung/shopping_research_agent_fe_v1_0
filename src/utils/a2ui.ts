@@ -31,18 +31,22 @@ const normalizeQuestionnaireData = (
     return null;
   }
 
+  // FIX: Chấp nhận option là chuỗi string hoặc object
   const options = data.options
-    .filter(isRecord)
     .map((item) => {
-      const id = typeof item.id === "string" ? item.id : null;
-      const labelRaw = item.label ?? item.text;
-      const label = typeof labelRaw === "string" ? labelRaw : null;
-
-      if (!id || !label) {
-        return null;
+      if (typeof item === "string") {
+        return { id: item, label: item }; // Fallback nếu BE trả string array
       }
-
-      return { id, label };
+      if (isRecord(item)) {
+        const id =
+          typeof item.id === "string" || typeof item.id === "number"
+            ? String(item.id)
+            : null;
+        const labelRaw = item.label ?? item.text ?? item.name;
+        const label = typeof labelRaw === "string" ? labelRaw : null;
+        if (id && label) return { id, label };
+      }
+      return null;
     })
     .filter((item): item is { id: string; label: string } => item !== null);
 
@@ -76,7 +80,7 @@ const normalizeProductData = (data: unknown): A2UIProductData | null => {
     typeof product.priceCurrent !== "number" ||
     typeof product.currency !== "string" ||
     typeof product.mainImage !== "string" ||
-    typeof product.ratingStart !== "number" ||
+    typeof product.ratingStar !== "number" ||
     typeof product.ratingCount !== "number" ||
     !isRecord(product.shop) ||
     typeof product.shop.shopId !== "string" ||
@@ -130,6 +134,10 @@ export const normalizeA2UIPayload = (payload: unknown): A2UIPayload | null => {
     case "a2ui_processing_status": {
       const data = normalizeProcessingData(payload.data);
       return data ? { type: payload.type, data } : null;
+    }
+
+    case "a2ui_done": {
+      return { type: "a2ui_done", data: {} };
     }
 
     default:

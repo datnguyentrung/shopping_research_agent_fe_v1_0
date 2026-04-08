@@ -1,5 +1,7 @@
 import type { FormEvent } from "react";
 import { useState } from "react";
+import ReactMarkdown from "react-markdown";
+import remarkGfm from "remark-gfm";
 import { useChatSSE } from "../../hooks/useChatSSE";
 import { useScrollToBottom } from "../../hooks/useScrollToBottom";
 import { formatDateTime } from "../../utils/formatters";
@@ -8,8 +10,14 @@ import { A2UIRenderer } from "./Renderer";
 
 const ChatPage = () => {
   const [input, setInput] = useState("");
-  const { messages, isLoading, error, sendMessage, sendHiddenMessage } =
-    useChatSSE();
+  const {
+    messages,
+    isLoading,
+    error,
+    sendMessage,
+    sendHiddenMessage,
+    resetChat,
+  } = useChatSSE();
   const bottomRef = useScrollToBottom(messages);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
@@ -21,15 +29,30 @@ const ChatPage = () => {
 
   return (
     <section className="chat-page">
-      <h2>Chat</h2>
+      <div className="chat-page__header">
+        <h2>Shopping Research Agent</h2>
+        <button onClick={resetChat} className="btn-reset" disabled={isLoading}>
+          🔄 Bắt đầu mới
+        </button>
+      </div>
       <div className="chat-page__content">
         <div className="chat-page__messages">
           {messages.map((message) => (
-            <article key={message.id} className="chat-page__message-item">
-              <strong>{message.role}</strong>
-              <p className="chat-page__message-content">
-                {message.content || (message.a2ui ? "" : "...")}
-              </p>
+            <article
+              key={message.id}
+              className={`chat-page__message-item ${message.role}`}
+            >
+              <strong>{message.role === "user" ? "Bạn" : "Agent"}</strong>
+
+              {/* FIX: Render Markdown thay vì text thô */}
+              {message.content && (
+                <div className="chat-page__message-content markdown-body">
+                  <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                    {message.content}
+                  </ReactMarkdown>
+                </div>
+              )}
+
               {message.a2ui ? (
                 <div className="chat-page__a2ui">
                   <A2UIRenderer
@@ -38,6 +61,7 @@ const ChatPage = () => {
                   />
                 </div>
               ) : null}
+
               <small>{formatDateTime(message.createdAt)}</small>
             </article>
           ))}
@@ -49,9 +73,10 @@ const ChatPage = () => {
             className="chat-page__input"
             value={input}
             onChange={(event) => setInput(event.target.value)}
-            placeholder="Nhập câu hỏi của bạn..."
+            placeholder="Nhập nhu cầu mua sắm của bạn (VD: Tìm áo thun nam oversize...)"
+            disabled={isLoading}
           />
-          <button type="submit" disabled={isLoading}>
+          <button type="submit" disabled={isLoading || !input.trim()}>
             {isLoading ? "Đang gửi..." : "Gửi"}
           </button>
         </form>

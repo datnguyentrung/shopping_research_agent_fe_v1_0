@@ -25,5 +25,6 @@ export interface ChatStreamChunk {
   type: "message" | "a2ui" | "done" | "error";
   content?: string;
   a2ui?: unknown;
+  a2Ui?: unknown; // Hỗ trợ cả 2 kiểu a2ui và a2Ui để đảm bảo tính tương thích
   error?: string;
 }

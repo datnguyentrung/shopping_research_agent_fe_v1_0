@@ -30,4 +30,5 @@ export interface A2UIProcessingData {
 export type A2UIPayload =
   | { type: "a2ui_questionnaire"; data: A2UIQuestionnaireData }
   | { type: "a2ui_interactive_product"; data: A2UIProductData }
-  | { type: "a2ui_processing_status"; data: A2UIProcessingData };
+  | { type: "a2ui_processing_status"; data: A2UIProcessingData }
+  | { type: "a2ui_done"; data: Record<string, never> }; // Thông báo kết thúc chuỗi A2UI

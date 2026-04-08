@@ -26,7 +26,7 @@ export interface CapturedData {
   mainImage: string;
 
   // Đánh giá trung bình và số lượng đánh giá để hiển thị thông tin đánh giá
-  ratingStart: number;
+  ratingStar: number;
   ratingCount: number;
   soldCount?: number;
 
